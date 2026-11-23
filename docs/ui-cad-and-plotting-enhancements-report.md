@@ -28,4 +28,4 @@ The CAD interactions have not yet been verified in a fresh application process. 
 
 ## External submission items
 
-The target repository is [tejashhxd/OsdagBridge](https://github.com/tejashhxd/OsdagBridge), branch `dev`. The source changes have not been pushed. Adding `Nidhikhare12` as a collaborator requires an authenticated repository-owner session. The requested demonstration video still needs to be recorded from a runnable GUI and uploaded as an unlisted YouTube video from the user's account.
+The source changes were pushed to [tejashhxd/OsdagBridge](https://github.com/tejashhxd/OsdagBridge), branch `dev`, in commit `a505f00`. The browser session available to this workspace is signed out of GitHub and YouTube, so the `Nidhikhare12` collaborator invitation and unlisted video upload remain pending. The demo has not been recorded because the Qt GUI launch failed as described above.
