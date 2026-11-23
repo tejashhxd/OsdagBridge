@@ -28,4 +28,4 @@ The CAD interactions have not yet been verified in a fresh application process. 
 
 ## External submission items
 
-The source changes were pushed to [tejashhxd/OsdagBridge](https://github.com/tejashhxd/OsdagBridge), branch `dev`, in commit `a505f00`. The browser session available to this workspace is signed out of GitHub and YouTube, so the `Nidhikhare12` collaborator invitation and unlisted video upload remain pending. The demo has not been recorded because the Qt GUI launch failed as described above.
+The source changes were pushed to [tejashhxd/OsdagBridge](https://github.com/tejashhxd/OsdagBridge), branch `dev`, in commit `a505f00`. The available GitHub browser session is signed out, so the `Nidhikhare12` collaborator invitation remains pending. YouTube Studio is signed in, but there is no demo recording to upload because the Qt GUI launch failed as described above.
