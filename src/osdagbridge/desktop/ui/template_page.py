@@ -1,4 +1,6 @@
-import os, yaml
+import math
+import os
+import yaml
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel,
     QMenuBar, QSplitter, QSizePolicy, QPushButton, QLineEdit, QComboBox, QFileDialog,
@@ -347,6 +349,7 @@ class CustomWindow(QWidget):
 
         # CAD widget
         self.cad_comp_widget = BridgeDualCADWidget(self)
+        self.cad_comp_widget.parameter_edited.connect(self._on_cad_parameter_edited)
         self.cad_comp_widget.setSizePolicy(
             QSizePolicy.Expanding, QSizePolicy.Expanding
         )
@@ -901,6 +904,103 @@ class CustomWindow(QWidget):
 
         # Apply state to CAD UI & Update Cad-State
         self.cad_comp_widget.update_from_osdag_inputs(self.input_dict)
+
+    def _on_cad_parameter_edited(self, key: str, text: str) -> None:
+        """Validate a 2D CAD edit, synchronize its inputs, and redraw the views."""
+        if self.input_dock.is_locked:
+            self.cad_comp_widget.update_from_osdag_inputs(self.input_dict)
+            return
+
+        editable_keys = {
+            KEY_SPAN,
+            KEY_CARRIAGEWAY_WIDTH,
+            KEY_TS_GIRDER_SPACING,
+            KEY_TS_DECK_THICKNESS,
+        }
+        if key not in editable_keys:
+            return
+
+        try:
+            value = float(text)
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError
+        except ValueError:
+            CustomMessageBox(
+                title="Invalid CAD Value",
+                text="Enter a finite number greater than zero.",
+                dialogType=MessageBoxType.Warning,
+            ).exec()
+            self.cad_comp_widget.update_from_osdag_inputs(self.input_dict)
+            return
+
+        candidate = dict(self.input_dict)
+        candidate[key] = value
+        validator = self.input_dock.validator
+        if key in (KEY_SPAN, KEY_CARRIAGEWAY_WIDTH):
+            validation = validator.validate_basic_inputs(key, candidate)
+        else:
+            validation = validator.validate_additional_inputs(key, candidate)
+
+        validation_message = None
+        if validation is not None:
+            value, validation_message = validation
+            value = float(value)
+
+        old_value = self.input_dict.get(key)
+        self.input_dict[key] = str(value)
+
+        try:
+            if key in (KEY_SPAN, KEY_CARRIAGEWAY_WIDTH, KEY_TS_GIRDER_SPACING):
+                solve_extend_basic_input_dict(
+                    self.input_dict,
+                    changed_field="spacing",
+                )
+                self.input_dock.is_require_field_changed = False
+        except (TypeError, ValueError) as exc:
+            self.input_dict[key] = old_value
+            self._get_additional_inputs().set_input_dictionary(self.input_dict)
+            self.cad_comp_widget.update_from_osdag_inputs(self.input_dict)
+            CustomMessageBox(
+                title="Invalid Bridge Layout",
+                text=str(exc),
+                dialogType=MessageBoxType.Warning,
+            ).exec()
+            return
+
+        basic_widget = self.input_dock._w(key)
+        if isinstance(basic_widget, QLineEdit):
+            basic_widget.blockSignals(True)
+            basic_widget.setText(str(value))
+            basic_widget.blockSignals(False)
+            self.input_dock._update_input_dict(key, str(value))
+
+        additional_inputs = self._get_additional_inputs()
+        additional_inputs.set_input_dictionary(self.input_dict)
+        if key == KEY_SPAN:
+            spacing_widget = additional_inputs.findChild(QLineEdit, KEY_MP_CB_SPACING)
+            if spacing_widget is not None:
+                additional_inputs._on_cb_spacing_computed("", spacing_widget)
+                try:
+                    cb_spacing = float(spacing_widget.text())
+                except ValueError:
+                    cb_spacing = None
+                if cb_spacing is not None:
+                    self.input_dict[KEY_MP_CB_SPACING] = cb_spacing
+                    additional_inputs.working_input_dict[KEY_MP_CB_SPACING] = cb_spacing
+                    for spacing_key, spacing_value in additional_inputs.working_input_dict.items():
+                        if spacing_key.startswith(f"{KEY_MP_CB_SPACING}."):
+                            self.input_dict[spacing_key] = spacing_value
+
+        additional_inputs._update_additional_input_cad()
+        self.backend.set_input(self.input_dict)
+        self.cad_comp_widget.update_from_osdag_inputs(self.input_dict)
+
+        if validation_message:
+            CustomMessageBox(
+                title="Input Adjusted",
+                text=validation_message,
+                dialogType=MessageBoxType.Warning,
+            ).exec()
 
     #---------------------------------Docking-Icons-Functionality-START----------------------------------------------
 

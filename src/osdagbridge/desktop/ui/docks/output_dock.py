@@ -38,6 +38,7 @@ from osdagbridge.core.utils.common import (
     KEY_UTIL_FLEXURE, KEY_UTIL_SHEAR, KEY_UTIL_INTERACTION, KEY_UTIL_LTB,
     KEY_UTIL_LONG_TRANS_SHEAR, KEY_UTIL_FATIGUE, KEY_UTIL_STRESS_LIMITATION,
     KEY_UTIL_DEFLECTION_CRACK, KEY_ANALYSIS_LOAD_COMBINATION,
+    KEY_ANALYSIS_MEMBER, TRANSVERSE_MEMBERS_LABEL,
     KEY_OUTPUT_DOCK_MEMBER_ID, KEY_OUTPUT_DOCK_LOAD_COMBINATION,
     KEY_TS_NO_OF_GIRDERS,
 )
@@ -858,12 +859,11 @@ class OutputDock(QWidget):
             combo_design.blockSignals(False)
 
         # 2. Update Analysis Member dropdown
-        from osdagbridge.core.utils.common import KEY_ANALYSIS_MEMBER
         combo_analysis = self._w(KEY_ANALYSIS_MEMBER)
         if combo_analysis is not None:
             combo_analysis.blockSignals(True)
             combo_analysis.clear()
-            combo_analysis.addItems(["All"] + items)
+            combo_analysis.addItems(["All"] + items + [TRANSVERSE_MEMBERS_LABEL])
             combo_analysis.setCurrentIndex(0)
             combo_analysis.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
             combo_analysis.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)

@@ -136,6 +136,7 @@ KEY_ANALYSIS_LOAD_COMBINATION = "analysis.load_combination"
 KEY_ANALYSIS_FORCES           = "analysis.forces"
 KEY_ANALYSIS_DISPLAY_OPTIONS  = "analysis.display_options"
 KEY_ANALYSIS_UTILIZATION      = "analysis.utilization"
+TRANSVERSE_MEMBERS_LABEL     = "Transverse Members"
 
 KEY_STEELDESIGN_MEMBER_ID = "steeldesign.member_id"
 KEY_STEELDESIGN_LOAD_COMBINATION = "steeldesign.load_combination"

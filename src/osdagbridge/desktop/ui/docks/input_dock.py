@@ -857,6 +857,9 @@ class InputDock(QWidget):
 
         # Update Additional Input State (Lock/Unlock)
         self.parent._additional_inputs_dialog.lock(lock=self.is_locked)
+        cad_widget = getattr(self.parent, "cad_comp_widget", None)
+        if cad_widget is not None:
+            cad_widget.set_parameter_editing_enabled(not self.is_locked)
 
         if not self.is_locked:
             # Clear 3D-Cad

@@ -58,6 +58,7 @@ _CRASH_BARRIER_TAB_SCHEMA = {
                         "IRC 5 - Metallic Crash Barrier with Double W-Beam",
                         "Custom",
                     ],
+                    "custom_value_ids": [KEY_CB_WIDTH, KEY_CB_HEIGHT, KEY_CB_LOAD],
                     "on_change": "on_crash_barrier_type_changed",
                     "on_change_compute": {"function": "compute_crash_barrier_values"},
                 }
@@ -141,6 +142,7 @@ _MEDIAN_TAB_SCHEMA = {
                         "IRC 5 - Metallic Crash Barrier with Double W-Beam",
                         "Custom",
                     ],
+                    "custom_value_ids": [KEY_MD_WIDTH, KEY_MD_HEIGHT, KEY_MD_LOAD],
                     "on_change": "on_median_type_changed",
                     "on_change_compute": {"function": "compute_median_values"},
                 }
@@ -217,6 +219,7 @@ _RAILING_TAB_SCHEMA = {
                     "label": "Type:",
                     "type": TYPE_COMBOBOX,
                     "choices": VALUES_RAILING_TYPE,
+                    "custom_value_ids": [KEY_RL_WIDTH, KEY_RL_HEIGHT],
                     "on_change": "on_railing_type_changed",
                     "on_change_compute": {"function": "compute_railing_values"},
                 }
@@ -248,6 +251,8 @@ _RAILING_TAB_SCHEMA = {
                     "label": "Mode:",
                     "type": TYPE_COMBOBOX,
                     "choices": ["As per IRC 6", "Custom"],
+                    "custom_value_ids": [KEY_RL_LOAD_VALUE],
+                    "custom_controller": KEY_RL_TYPE,
                     "on_change": "on_railing_load_mode_changed",
                 },
                 {
@@ -273,6 +278,7 @@ _WEARING_COURSE_TAB_SCHEMA = {
                     "label": "Material:",
                     "type": TYPE_COMBOBOX,
                     "choices": VALUES_WEARING_COAT_MATERIAL,
+                    "custom_value_ids": [KEY_WC_DENSITY],
                     "on_change": "on_wearing_material_changed",
                     "on_change_compute": {"function": "compute_wearing_course_values"},
                 }

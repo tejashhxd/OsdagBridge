@@ -31,7 +31,6 @@ from .plot_generator import (
     # build_figure_bmd_contour,  # commented out
     build_figure_deflection,
     build_figure_grillage,
-    build_nodes_members,
     figure_to_bytes,
 )
 from osdagbridge.core.utils.codes.irc6_2017 import IRC6_2017
@@ -3908,6 +3907,7 @@ class PlateGirderBridge:
 
     def get_nodes_members(self) -> tuple[dict, dict]:
         """Return (nodes, members) dicts built from the active openseespy model."""
+        from .results_data import build_nodes_members
         return build_nodes_members()
 
     def get_edge_dist(self) -> float:

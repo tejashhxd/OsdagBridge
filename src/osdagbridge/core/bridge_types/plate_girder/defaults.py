@@ -867,8 +867,11 @@ def seed_no_of_girders(overall_width: float) -> int:
         raise ValueError("Overall bridge width must be positive.")
     return max(2, ceil(overall_width / DEFAULT_GIRDER_SPACING))
 
-def solve_extend_basic_input_dict(basic_input_dict: dict) -> None:
-    """Parse basic inputs and solve bridge layout. Updates basic_input_dict in-place."""
+def solve_extend_basic_input_dict(
+    basic_input_dict: dict,
+    changed_field: str = "girders",
+) -> None:
+    """Solve bridge layout in-place, preserving the field named by changed_field."""
     from .initial_sizing import BridgeConfigurationSolver
 
     def _railing_width_m(value) -> float:
@@ -916,7 +919,18 @@ def solve_extend_basic_input_dict(basic_input_dict: dict) -> None:
         basic_input_dict.get(KEY_TS_NO_OF_GIRDERS)
         or seed_no_of_girders(solver.calculate_overall_bridge_width())
     )
-    sizing_result = solver._solve_layout(no_of_girders=no_of_girders, changed_field='girders')
+    sizing_result = solver._solve_layout(
+        no_of_girders=no_of_girders,
+        girder_spacing=(
+            float(basic_input_dict.get(KEY_TS_GIRDER_SPACING) or 0.0)
+            if changed_field == "spacing" else 0.0
+        ),
+        deck_overhang=(
+            float(basic_input_dict.get(KEY_TS_DECK_OVERHANG) or 0.0)
+            if changed_field == "overhang" else 0.0
+        ),
+        changed_field=changed_field,
+    )
 
     print("[DEBUG] Bridge Layout Sizing Result:")
     print(f"  overall_width = {sizing_result.overall_width} m")

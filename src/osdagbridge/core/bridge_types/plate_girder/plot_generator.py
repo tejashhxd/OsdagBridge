@@ -8,10 +8,10 @@ import matplotlib.colors as mcolors
 from matplotlib.ticker import FuncFormatter
 from matplotlib.ticker import MaxNLocator
 import numpy as np
-import openseespy.opensees as ops
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 from mpl_toolkits.mplot3d import proj3d
 from matplotlib.text import Annotation
+from osdagbridge.core.utils.common import TRANSVERSE_MEMBERS_LABEL
 try:
     import mplcursors
     _MPLCURSORS = True
@@ -91,16 +91,9 @@ def _set_value_axis_tick_formatter(ax, eng_scale, value_sign: float = 1.0, use_a
 # =============================================================================
 
 def build_nodes_members():
-    """Build nodes and members dicts from the active openseespy model."""
-    nodes = {
-        int(n): list(map(float, ops.nodeCoord(n)))
-        for n in ops.getNodeTags()
-    }
-    members = {
-        int(e): list(map(int, ops.eleNodes(e)))
-        for e in ops.getEleTags()
-    }
-    return nodes, members
+    """Compatibility wrapper; model extraction is centralized in results_data."""
+    from .results_data import build_nodes_members as extract_nodes_members
+    return extract_nodes_members()
 
 
 def _find_girders(nodes, members, z_tol=3):
@@ -157,6 +150,208 @@ def _build_polyline(elems, members, nodes, force_i, force_j, ds):
     node_ids.append(n2)
 
     return np.array(xs), np.array(ys), np.array(zs), np.array(vals), node_ids
+
+
+def _find_result_component(data_array, name):
+    for component in data_array.coords["Component"].values:
+        if str(component).lower() == name.lower():
+            return component
+    return None
+
+
+def _build_transverse_member_figure(
+    ds,
+    result_key,
+    nodes,
+    members,
+    transverse_members,
+    edge_dist=0.0,
+    eng_scale=1.0,
+):
+    """Plot all transverse element results for the selected load-case slice."""
+    is_deflection = result_key in DISP_MAP
+    v_scale = _value_plot_scale(eng_scale)
+    if is_deflection:
+        component_name = DISP_MAP[result_key]
+        display_name = DISP_DISPLAY.get(result_key, result_key)
+        result_array = ds.get("displacements")
+        requested_components = ({
+            "dx": "x", "dy": "y", "dz": "z",
+        }.get(component_name.lower(), component_name),)
+        unit = "mm"
+    else:
+        force_i, force_j = FORCE_MAP[result_key]
+        display_name = FORCE_DISPLAY.get(result_key, result_key)
+        result_array = ds.get("forces")
+        requested_components = (force_i, force_j)
+        unit = "kNm" if result_key in ("Mx", "My", "Mz") else "kN"
+
+    fig = Figure(figsize=(14, 6), dpi=110, facecolor="white")
+    ax = fig.add_subplot(111, projection="3d", facecolor="white")
+    summary_data = {}
+
+    if not nodes:
+        ax.text2D(0.5, 0.5, "No transverse member results available.", ha="center", va="center")
+        return fig, summary_data
+
+    all_xs = [coord[0] for coord in nodes.values()]
+    all_zs = [coord[2] for coord in nodes.values()]
+    x_min, x_max = min(all_xs), max(all_xs)
+    z_min, z_max = min(all_zs), max(all_zs)
+    x_range = x_max - x_min or 1.0
+    z_range = z_max - z_min or 1.0
+
+    ax.set_xlim(x_min, x_max if x_max != x_min else x_min + 1.0)
+    ax.set_ylim(z_min, z_max if z_max != z_min else z_min + 1.0)
+    ax.set_box_aspect([x_range, z_range, x_range * 0.30 * max(v_scale, 1e-6)])
+    _add_grillage_background(ax, nodes, members, show_transverse=True)
+
+    series = []
+    data_by_node = {}
+    data_by_element = ({}, {})
+    if result_array is not None:
+        actual_components = [
+            _find_result_component(result_array, name)
+            for name in requested_components
+        ]
+        if all(component is not None for component in actual_components):
+            if is_deflection:
+                data_by_node = {
+                    int(node): float(value) * 1000.0
+                    for node, value in zip(
+                        result_array.coords["Node"].values,
+                        result_array.sel(Component=actual_components[0]).values,
+                    )
+                }
+            else:
+                data_by_element = [
+                    {
+                        int(element): float(value) / 1000.0
+                        for element, value in zip(
+                            result_array.coords["Element"].values,
+                            result_array.sel(Component=component).values,
+                        )
+                    }
+                    for component in actual_components
+                ]
+
+        for element in transverse_members or ():
+            if is_deflection and data_by_node:
+                endpoints = members.get(int(element))
+                if endpoints is None or len(endpoints) != 2:
+                    continue
+                n1, n2 = endpoints
+                if n1 not in nodes or n2 not in nodes:
+                    continue
+                if n1 not in data_by_node or n2 not in data_by_node:
+                    continue
+                values = [data_by_node[n1], data_by_node[n2]]
+                if requested_components[0].lower() in ("y", "z"):
+                    values = [-value for value in values]
+            elif not is_deflection and data_by_element[0]:
+                endpoints = members.get(int(element))
+                if endpoints is None or len(endpoints) != 2:
+                    continue
+                n1, n2 = endpoints
+                if n1 not in nodes or n2 not in nodes:
+                    continue
+
+                first_values, second_values = data_by_element
+                if int(element) not in first_values or int(element) not in second_values:
+                    continue
+                values = [first_values[int(element)], second_values[int(element)]]
+                if result_key not in ("Mx", "My", "Mz"):
+                    values[1] = -values[1]
+            else:
+                continue
+
+            coordinates = [nodes[n1], nodes[n2]]
+            xs = [point[0] for point in coordinates]
+            widths = [point[2] for point in coordinates]
+            plot_sign = -1.0 if not is_deflection and result_key in ("Mx", "My", "Mz") else 1.0
+            plotted_values = [value * plot_sign * v_scale for value in values]
+            series.append((int(element), (n1, n2), xs, widths, values, plotted_values))
+
+    if not series:
+        ax.text2D(0.5, 0.5, "No transverse member results available for this load case.", ha="center", va="center")
+    else:
+        value_color = "#1565C0" if not is_deflection else "#6A1B9A"
+        baseline_color = "#607D8B"
+        scatter_objects = []
+        scatter_data = {}
+        all_values = []
+        z_min_value = 0.0
+        z_max_value = 0.0
+
+        for element, node_ids, xs, widths, values, plotted_values in series:
+            ax.plot(xs, widths, [0.0, 0.0], color=baseline_color, linewidth=1.0, alpha=0.5)
+            ax.plot(xs, widths, plotted_values, color=value_color, linewidth=2.0)
+            for x, width, plotted, value in zip(xs, widths, plotted_values, values):
+                ax.plot([x, x], [width, width], [0.0, plotted], color=value_color, linewidth=1.0, alpha=0.7)
+                ax.text(
+                    x, width, plotted, f" {value:.3f} {unit}",
+                    fontsize=6, color="#455A64", gid="all_vals",
+                )
+                z_min_value = min(z_min_value, plotted)
+                z_max_value = max(z_max_value, plotted)
+                all_values.append((value, x, width, plotted))
+
+            scatter = ax.scatter(xs, widths, plotted_values, color=value_color, s=22, depthshade=False)
+            scatter_objects.append(scatter)
+            scatter_data[id(scatter)] = (element, node_ids, xs, values)
+
+        if all_values:
+            max_point = max(all_values, key=lambda point: point[0])
+            min_point = min(all_values, key=lambda point: point[0])
+            for point, gid in ((max_point, "max_line"), (min_point, "min_line")):
+                value, x, width, plotted = point
+                ax.plot([x, x], [width, width], [0.0, plotted], color="black", linestyle="--", gid=gid)
+                ax.text(x, width, plotted, f" {value:.3f} {unit}", color="black", fontsize=7, fontweight="bold", gid=gid)
+            summary_data[TRANSVERSE_MEMBERS_LABEL] = {
+                "max": float(max(point[0] for point in all_values)),
+                "min": float(min(point[0] for point in all_values)),
+            }
+
+        if _MPLCURSORS and scatter_objects:
+            cursor = mplcursors.cursor(scatter_objects, hover=True)
+            fig._custom_cursor = cursor
+
+            @cursor.connect("add")
+            def on_add(selection, _data=scatter_data, _label=display_name, _unit=unit):
+                element, node_ids, xs_for_element, values_for_element = _data[id(selection.artist)]
+                index = selection.index
+                selection.annotation.set_text(
+                    f"Element {element} · Node {node_ids[index]}\n"
+                    f"X: {xs_for_element[index]:.2f}\n{_label}: {values_for_element[index]:.3f} {_unit}"
+                )
+                selection.annotation.get_bbox_patch().set(fc="white", alpha=0.9, edgecolor="#BBBBBB")
+
+        _add_node_number_labels(ax, nodes)
+        _add_element_number_labels(ax, nodes, members)
+        _add_supports(ax, nodes, members, edge_dist=edge_dist, selected_girder="All")
+
+    ax.set_xlabel("Span Length (m)", fontsize=10, labelpad=8)
+    ax.set_ylabel("Bridge Width (m)", fontsize=10, labelpad=8)
+    ax.set_zlabel(f"{display_name} ({unit})", fontsize=10, labelpad=8)
+    ax.set_title(f"Transverse Member Diagram — {display_name} ({unit})", fontsize=12, fontweight="bold", pad=12)
+    if series:
+        span = max(1e-9, z_max_value - z_min_value)
+        pad = max(1e-6, 0.05 * span)
+        ax.set_zlim(z_min_value - pad, z_max_value + pad)
+        _set_value_axis_tick_formatter(
+            ax,
+            v_scale,
+            value_sign=-1.0 if not is_deflection and result_key in ("Mx", "My", "Mz") else 1.0,
+        )
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=4, steps=[1, 2, 2.5, 5, 10]))
+    ax.view_init(elev=DEFAULT_ELEV, azim=DEFAULT_AZIM)
+    ax.xaxis.pane.fill = False
+    ax.yaxis.pane.fill = False
+    ax.zaxis.pane.fill = False
+    _add_coordinate_triad(ax, nodes, eng_scale=v_scale)
+    ax.set_axis_off()
+    fig._eng_scale = v_scale
+    return fig, summary_data
 
 
 # =============================================================================
@@ -650,10 +845,19 @@ def build_figure_grillage(nodes, members, edge_dist=0.0, selected_girder="All"):
 # SFD PLOT
 # =============================================================================
 
-def build_figure_sfd(ds, force_key, nodes, members, edge_dist=0.0, eng_scale=1.0, selected_girder="All"):
+def build_figure_sfd(
+    ds, force_key, nodes, members, edge_dist=0.0, eng_scale=1.0,
+    selected_girder="All", transverse_members=None,
+):
     """
     Build a 3-D matplotlib figure showing the Shear Force Diagram.
     """
+    if selected_girder == TRANSVERSE_MEMBERS_LABEL:
+        return _build_transverse_member_figure(
+            ds, force_key, nodes, members, transverse_members,
+            edge_dist=edge_dist, eng_scale=eng_scale,
+        )
+
     v_scale = _value_plot_scale(eng_scale)
     comp_i_name, comp_j_name = FORCE_MAP[force_key]
     disp_key = FORCE_DISPLAY.get(force_key, force_key)
@@ -897,7 +1101,10 @@ def build_figure_sfd(ds, force_key, nodes, members, edge_dist=0.0, eng_scale=1.0
 # BMD PLOT
 # =============================================================================
 
-def build_figure_bmd(ds, force_key, nodes, members, edge_dist=0.0, eng_scale=1.0, selected_girder="All"):
+def build_figure_bmd(
+    ds, force_key, nodes, members, edge_dist=0.0, eng_scale=1.0,
+    selected_girder="All", transverse_members=None,
+):
     """
     Build a 3-D matplotlib figure showing the Bending Moment Diagram.
 
@@ -917,6 +1124,12 @@ def build_figure_bmd(ds, force_key, nodes, members, edge_dist=0.0, eng_scale=1.0
     fig          : matplotlib.figure.Figure
     summary_data : dict  — {girder_name: {"max": float, "min": float}}
     """
+    if selected_girder == TRANSVERSE_MEMBERS_LABEL:
+        return _build_transverse_member_figure(
+            ds, force_key, nodes, members, transverse_members,
+            edge_dist=edge_dist, eng_scale=eng_scale,
+        )
+
     v_scale = _value_plot_scale(eng_scale)
     comp_i_name, comp_j_name = FORCE_MAP[force_key]
     disp_key = FORCE_DISPLAY.get(force_key, force_key)
@@ -1287,10 +1500,19 @@ def build_figure_bmd(ds, force_key, nodes, members, edge_dist=0.0, eng_scale=1.0
 # DEFLECTION PLOT
 # =============================================================================
 
-def build_figure_deflection(ds, disp_key, nodes, members, edge_dist=0.0, eng_scale=1.0, selected_girder="All"):
+def build_figure_deflection(
+    ds, disp_key, nodes, members, edge_dist=0.0, eng_scale=1.0,
+    selected_girder="All", transverse_members=None,
+):
     """
     Build a 3-D matplotlib figure showing the Deflection Diagram.
     """
+    if selected_girder == TRANSVERSE_MEMBERS_LABEL:
+        return _build_transverse_member_figure(
+            ds, disp_key, nodes, members, transverse_members,
+            edge_dist=edge_dist, eng_scale=eng_scale,
+        )
+
     v_scale = _value_plot_scale(eng_scale)
     comp_name  = DISP_MAP[disp_key]
     disp_label = DISP_DISPLAY.get(disp_key, disp_key)

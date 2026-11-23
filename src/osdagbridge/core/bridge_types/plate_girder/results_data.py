@@ -81,7 +81,7 @@ class LazyLoadcaseResults(Mapping):
 _TOOLS_DIR = Path(__file__).resolve().parents[5] / "tools"
 
 
-def _build_nodes_members() -> tuple[dict, dict]:
+def build_nodes_members() -> tuple[dict, dict]:
     """Read node coords and element connectivity from the live openseespy model."""
     nodes = {
         int(n): list(map(float, ops.nodeCoord(n)))
@@ -92,6 +92,34 @@ def _build_nodes_members() -> tuple[dict, dict]:
         for e in ops.getEleTags()
     }
     return nodes, members
+
+
+def _build_nodes_members() -> tuple[dict, dict]:
+    """Backward-compatible alias for callers of the former private helper."""
+    return build_nodes_members()
+
+
+def classify_member_tags(nodes: dict, members: dict) -> tuple[list[int], list[int]]:
+    """Return longitudinal and transverse two-node element tags from connectivity."""
+    longitudinal = []
+    transverse = []
+    z_tol = 1e-3
+    y_tol = 1e-3
+
+    for tag, node_ids in members.items():
+        if len(node_ids) != 2:
+            continue
+        n1, n2 = node_ids
+        if n1 not in nodes or n2 not in nodes:
+            continue
+        delta_z = abs(nodes[n1][2] - nodes[n2][2])
+        delta_y = abs(nodes[n1][1] - nodes[n2][1])
+        if delta_z < z_tol and delta_y < y_tol:
+            longitudinal.append(int(tag))
+        elif delta_z >= z_tol:
+            transverse.append(int(tag))
+
+    return longitudinal, transverse
 
 
 def dump_full_data(
@@ -408,18 +436,7 @@ def _build_full_data(model, edge_dist: float = 0.0, dataset=None, lazy: bool = F
     disp_components = [str(
         c) for c in ds0["displacements"].coords["Component"].values] if "displacements" in ds0.data_vars else []
 
-    # Classify members: longitudinal = both nodes share same Z and same Y
-    _z_tol = 1e-3
-    longitudinal_members = []
-    transverse_members = []
-    for tag, (n1, n2) in members.items():
-        if n1 not in nodes or n2 not in nodes:
-            continue
-        if (abs(nodes[n1][2] - nodes[n2][2]) < _z_tol and
-                abs(nodes[n1][1] - nodes[n2][1]) < _z_tol):
-            longitudinal_members.append(tag)
-        else:
-            transverse_members.append(tag)
+    longitudinal_members, transverse_members = classify_member_tags(nodes, members)
 
     data: dict = {
         "nodes": {str(k): list(v) for k, v in nodes.items()},

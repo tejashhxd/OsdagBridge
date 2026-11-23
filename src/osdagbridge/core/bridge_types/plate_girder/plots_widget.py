@@ -1,6 +1,5 @@
 import numpy as np
 import plotly.graph_objects as go
-import openseespy.opensees as ops
 
 FORCE_MAP = {
     "Fx": ("Vx_i", "Vx_j"),
@@ -44,16 +43,9 @@ SHARED_SCENE = dict(
 
 
 def build_nodes_members():
-    """Build nodes and members dicts from the active openseespy model."""
-    nodes = {
-        int(n): list(map(float, ops.nodeCoord(n)))
-        for n in ops.getNodeTags()
-    }
-    members = {
-        int(e): list(map(int, ops.eleNodes(e)))
-        for e in ops.getEleTags()
-    }
-    return nodes, members
+    """Compatibility wrapper; model extraction is centralized in results_data."""
+    from .results_data import build_nodes_members as extract_nodes_members
+    return extract_nodes_members()
 
 
 def add_grillage_background(fig, nodes_dict, members_dict):
@@ -126,16 +118,12 @@ def build_figure_sfd(ds, force_key, nodes, members):
         return float(ds["forces"].sel(Element=elem, Component=comp).values)
 
     Z_TOL = 3
-    node_z = {}
-    for n in ops.getNodeTags():
-        z = float(ops.nodeCoord(n)[2])
-        node_z[int(n)] = round(z, Z_TOL)
+    node_z = {int(node): round(float(coord[2]), Z_TOL) for node, coord in nodes.items()}
 
     from collections import defaultdict
     girders = defaultdict(list)
 
-    for ele in ops.getEleTags():
-        n1, n2 = map(int, ops.eleNodes(ele))
+    for ele, (n1, n2) in members.items():
         z1, z2 = node_z[n1], node_z[n2]
         if z1 == z2:
             girders[z1].append(int(ele))
@@ -258,16 +246,12 @@ def build_figure_bmd(ds, force_key, nodes, members):
         return float(ds["forces"].sel(Element=elem, Component=comp).values)
 
     Z_TOL = 3
-    node_z = {}
-    for n in ops.getNodeTags():
-        z = float(ops.nodeCoord(n)[2])
-        node_z[int(n)] = round(z, Z_TOL)
+    node_z = {int(node): round(float(coord[2]), Z_TOL) for node, coord in nodes.items()}
 
     from collections import defaultdict
     girders = defaultdict(list)
 
-    for ele in ops.getEleTags():
-        n1, n2 = map(int, ops.eleNodes(ele))
+    for ele, (n1, n2) in members.items():
         z1, z2 = node_z[n1], node_z[n2]
         if z1 == z2:
             girders[z1].append(int(ele))
