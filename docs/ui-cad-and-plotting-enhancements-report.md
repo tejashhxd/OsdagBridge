@@ -28,4 +28,4 @@ The CAD interactions were manually smoke-tested in a visible Python 3.13 instanc
 
 ## External submission items
 
-The source changes were pushed to [tejashhxd/OsdagBridge](https://github.com/tejashhxd/OsdagBridge), branch `dev`; the implementation is in commit `a505f00`, with the latest status update in commit `77651f9`. A GitHub invitation to `Nidhikhare12` has been sent and is awaiting acceptance; the invitation flow did not expose a role selector, so Admin-level access is not confirmed. No genuine demo recording has been uploaded: Game Bar/NVIDIA could not record this non-game window, and OBS was not installed after its license was declined.
+The source changes were pushed to [tejashhxd/OsdagBridge](https://github.com/tejashhxd/OsdagBridge), branch `dev`; the implementation is in commit `a505f00`. A GitHub invitation to `Nidhikhare12` has been sent and is awaiting acceptance; the invitation flow did not expose a role selector, so Admin-level access is not confirmed. No genuine demo recording has been uploaded: Game Bar/NVIDIA could not record this non-game window, and OBS was not installed after its license was declined.
